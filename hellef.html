@@ -50,7 +50,7 @@
   <ul>
     <li><b>Apparat:</b> Computer, Tablet oder Handy, an all aktuellem Browser (Safari, Chrome, Firefox, Edge).</li>
     <li><b>Keng Umeldung:</b> Et brauch kee Kont a keen Passwuert.</li>
-    <li><b>Donnéeën:</b> Alles bleift am Browser vum Leefer; Fotoen a Fichieren ginn um Apparat selwer gelies. Just d'Startplaz an d'Datum ginn un Open-Meteo (Wieder) an OpenStreetMap (Numm vun der Plaz) geschéckt. Beim Klick op „PDF“ oder „Excel“ gëtt just e Zieler eropgesat (wéi oft d'Tool benotzt gëtt), ouni Numm a Trainingsdonnéeën.</li>
+    <li><b>Donnéeën:</b> Alles bleift am Browser vum Leefer; Fotoen a Fichieren ginn um Apparat selwer gelies. Just d'Startplaz an d'Datum ginn un Open-Meteo (Wieder) an OpenStreetMap (Numm vun der Plaz) geschéckt. Beim Import vun Intervals.icu geet d'Aktivitéits-Nummer mam eegene API-Schlëssel (just am Browser gespäichert) direkt un intervals.icu. Beim Klick op „PDF“ oder „Excel“ gëtt just e Zieler eropgesat (wéi oft d'Tool benotzt gëtt), ouni Numm a Trainingsdonnéeën.</li>
     <li><b>Zwëschespäicheren:</b> De leschten Training bleift automatesch stoen, och wann een d'Säit zoumécht.</li>
   </ul>
 
@@ -78,6 +78,7 @@
   <div class="tw"><table>
     <tr><th>Quell</th><th>Wat gëtt iwwerholl</th><th>Wat ze wëssen ass</th></tr>
     <tr><td>FIT, TCX, GPX (Garmin, Coros, Strava)</td><td>Runden mat Distanz, Zäit op d'Honnertstel, Max HR pro Rep, Min HR pro Paus; bei Garmin och Datum, Auerzäit, Temperatur a Wand</td><td>Am exaktsten. Op der Piste gëtt d'GPS-Distanz op déi ronn Distanz gesat (1612 m → 1600 m). GPX gëtt an 1-km-Splits opgedeelt.</td></tr>
+    <tr><td>Intervals.icu (Aktivitéits-Nummer oder Link)</td><td>Dat selwecht wéi bei engem FIT-Fichier (d'Original-Datei vun der Aktivitéit gëtt gelueden), plus Datum, Auerzäit a Wieder vun Intervals.icu, wann d'Auer keent gëtt</td><td>Am Dialog d'Nummer vun der Aktivitéit aginn (z.B. <code>i12345678</code>, oder de Link aus der Adressleescht apechen) a „Vun Intervals.icu lueden“ klicken. Eemol muss een den eegenen API-Schlëssel aginn (Intervals.icu → Settings → Developer Settings → API Key). Ouni Ronnen op der Auer ginn d'Intervalle vun Intervals.icu geholl, dann just op d'Sekonn. Aktivitéiten, déi vu Strava op Intervals.icu kommen, gëtt Intervals.icu net weider: do w.e.gl. de FIT-Fichier huelen.</td></tr>
     <tr><td>Screenshot oder Foto vun der Rundelëscht</td><td>Runden aus der Auer-App, per Texterkennung um Apparat</td><td>Erkennung kann sech verdinn: Virschau ëmmer kontrolléieren.</td></tr>
     <tr><td>Trainingsplang (PDF, Bild oder Text)</td><td>Reps, Pausen, Training an Datum vum gewielten Dag</td><td>Funktionéiert am beschte mat der Schreifweis ënnen. Wat net verstane gëtt, steet als „Net verstan: …“ do.</td></tr>
     <tr><td>Strecke virwielen</td><td>400 m bis Marathon</td><td>Vun 3 km un eng Rep pro km.</td></tr>

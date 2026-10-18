@@ -213,6 +213,14 @@
   #stravaList button { text-align: left; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
   #stravaList small { color: var(--muted); white-space: nowrap; }
   #stravaOff { font-size: 12px; color: var(--muted); background: none; border: 0; text-decoration: underline; padding: 0 4px; }
+  #icuBox { border: 1px solid #c3c8da; background: #f6f8fd; border-radius: 6px; padding: 8px 10px; margin: 10px 0; }
+  #icuBox .line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  #icuBox #icuAct { flex: 1; min-width: 200px; width: auto; }
+  #icuBox details { margin: 8px 0 0; }
+  #icuBox summary { cursor: pointer; font-size: 13px; }
+  #icuBox #icuKey { max-width: 360px; margin-top: 6px; -webkit-text-security: disc; }   /* masked without type=password: no password-manager autofill */
+  #icuBox .hint { margin: 4px 0 0; }
+  #icuKeyOff { font-size: 12px; color: var(--muted); background: none; border: 0; text-decoration: underline; padding: 0 4px; }
   #imp .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   .rowbtns .tgl { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--sb-blue); font-size: 13px; cursor: pointer; }
   .rowbtns .tgl input { width: auto; }
@@ -397,6 +405,19 @@
       <span class="got" id="gotLaps"></span>
       <input type="file" id="impFileLaps">
     </label>
+  </div>
+  <div id="icuBox">
+    <b>Oder direkt vun Intervals.icu</b> <span style="font-size:12px;color:var(--muted)">(amplaz Deel 2)</span>
+    <div class="line">
+      <input id="icuAct" placeholder="z.B. i12345678 oder Link" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Intervals.icu Aktivitéits-Nummer">
+      <button id="icuBtn" class="primary">Vun Intervals.icu lueden</button>
+    </div>
+    <details id="icuKeyBox">
+      <summary>API-Schlëssel</summary>
+      <input id="icuKey" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="API-Schlëssel vun Intervals.icu" aria-label="Intervals.icu API-Schlëssel">
+      <button id="icuKeyOff" hidden>Schlëssel läschen</button>
+      <p class="hint">Intervals.icu → Settings → Developer Settings → API Key. De Schlëssel bleift just an dësem Browser a geet nëmmen un intervals.icu.</p>
+    </details>
   </div>
   <div id="stravaBox" hidden>
     <button id="stravaBtn">Vu Strava lueden</button>
@@ -718,6 +739,7 @@
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
     if (e.target.id === 'impPlan') { e.preventDefault(); combine(); return; }
+    if (e.target.id === 'icuAct') { e.preventDefault(); $('icuBtn').click(); return; }
     if (!e.target.closest('.sheet')) return;
     e.preventDefault();
     const all = [...document.querySelectorAll('.sheet input:not([type=file])')];
@@ -1474,7 +1496,7 @@
       const d = m.tzOffset != null ? new Date(utc + m.tzOffset * 1000) : new Date(utc - new Date(utc).getTimezoneOffset() * 60000);
       o.date = d.toISOString().slice(0, 10); o.clock = d.toISOString().slice(11, 16);
     }
-    if (m.temp != null) o.temp = String(m.temp);
+    if (m.temp != null) o.temp = String(m.temp).replace('.', ',');
     if (m.lat != null && m.lon != null) { o.lat = m.lat; o.lon = m.lon; }
     if (m.wind != null) o.wind = dec(m.wind, 1).replace(/,0$/, '');
     return o;
@@ -1725,7 +1747,7 @@
     $('impPlan').value = hasXPlan(S.training) ? S.training.replace(/\s+\+\s+/g, '; ') : '';
     renderPreview();
     $('impRoundRow').hidden = true; $('impRound').checked = false;
-    $('impFilePlan').value = $('impFileLaps').value = ''; stravaUi();
+    $('impFilePlan').value = $('impFileLaps').value = ''; stravaUi(); $('icuAct').value = ''; icuUi();
     dlg.showModal();
   };
 
@@ -1775,6 +1797,18 @@
     }
     return text;
   }
+  // laps of an activity (file, Intervals.icu) → part 2 of the dialog; date, time of day, place and weather go into the sheet
+  async function takeLaps(laps, src, name, extra = '') {
+    lapSlot = lapsToEntries(laps); lapSrc = src; lapName = name || src;
+    impMeta = laps.meta || null;
+    lapInfo = (impMeta?.stopped ? ' Pausen, wou d\'Auer gestoppt war oder wou s de stoe bliwwe bass, sinn eegen Zeilen.' : '') + metaText(impMeta);
+    if (/^GPX/.test(src)) lapInfo = ' ' + GPX_NOTE;
+    const place = await takeMeta(impMeta);
+    lapInfo += ' Datum, Auerzäit' + (place ? ` a Plaz (${place})` : '') + ' sinn agedroen.' + extra;
+    $('impRoundRow').hidden = false;
+    $('impRound').checked = /piste|track|bahn/i.test(S.surface);
+    $('impRound').onchange({ target: $('impRound') });             // also runs combine()
+  }
   // slot: 'plan' / 'laps' when dropped on (or picked in) one of the two parts, else recognised from the content
   async function importFile(file, slot) {
     try {
@@ -1783,15 +1817,7 @@
       if (['fit', 'zip', 'tcx', 'gpx'].includes(kind)) {
         status('Aktivitéit gëtt gelies …');
         const laps = await parseActivity(file, kind);
-        lapSlot = lapsToEntries(laps); lapSrc = kind === 'gpx' ? 'GPX (km-Splits)' : 'Auer-Fichier'; lapName = file.name || lapSrc;
-        impMeta = laps.meta || null;
-        lapInfo = (impMeta?.stopped ? ' Pausen, wou d\'Auer gestoppt war oder wou s de stoe bliwwe bass, sinn eegen Zeilen.' : '') + metaText(impMeta);
-        if (kind === 'gpx') lapInfo = ' ' + GPX_NOTE;
-        const place = await takeMeta(impMeta);
-        lapInfo += ' Datum, Auerzäit' + (place ? ` a Plaz (${place})` : '') + ' sinn agedroen.';
-        $('impRoundRow').hidden = false;
-        $('impRound').checked = /piste|track|bahn/i.test(S.surface);
-        $('impRound').onchange({ target: $('impRound') });             // also runs combine()
+        await takeLaps(laps, kind === 'gpx' ? 'GPX (km-Splits)' : 'Auer-Fichier', file.name);
         return;
       }
       let text;
@@ -1943,6 +1969,113 @@
     catch (err) { status(err.message, true); }
   })();
 
+  // ================= Intervals.icu (REST API, called straight from the browser with the runner's own API key) =================
+  // Preferred: the original file of the activity (FIT, gzipped) through the normal FIT import (hundredths, stops, HR, GPS start).
+  // Fallback (no file, or the watch recorded no laps): the intervals Intervals.icu detected itself (whole seconds).
+  const ICU = 'https://intervals.icu/api/v1', IKEY = 'lafen-intervals';
+  const iGet = () => { try { return localStorage.getItem(IKEY) || ''; } catch { return ''; } };
+  const iSet = v => { try { v ? localStorage.setItem(IKEY, v) : localStorage.removeItem(IKEY); } catch {} };
+  // "i12345678", "I12345678", a link like https://intervals.icu/activities/i12345678/data, or a bare number
+  // (a bare number only on its own: "?w=2026-10-13" in a copied link is no activity)
+  const icuId = s => {
+    s = String(s || '').trim();
+    const m = s.match(/activities\/(i?\d+)/i) || s.match(/(?<![\w-])(i\d{3,})(?![\w-])/i) || s.match(/^(\d{4,})$/);
+    return m ? m[1].toLowerCase() : '';
+  };
+  async function icuFetch(path) {
+    let auth;
+    try { auth = 'Basic ' + btoa('API_KEY:' + iGet()); } catch { throw Object.assign(new Error('Am API-Schlëssel sinn Zeechen, déi et net ka ginn. W.e.gl. nach eng Kéier kopéieren.'), { status: 401 }); }
+    const r = await fetch(ICU + path, { headers: { Authorization: auth } })
+      .catch(() => { throw Object.assign(new Error('Keng Verbindung mat Intervals.icu (Internet?).'), { net: true }); });
+    if (r.ok) return r;
+    const msg = { 401: 'Intervals.icu huet den API-Schlëssel net akzeptéiert. W.e.gl. nokucken (Settings → Developer Settings → API Key).',
+                  403: 'Kee Zougrëff op dës Aktivitéit. Gehéiert se zum Kont vun dësem API-Schlëssel?',
+                  404: 'Aktivitéit net fonnt. W.e.gl. d\'Nummer nokucken (am Link vun der Aktivitéit, z.B. i12345678).',
+                  429: 'Ze vill Ufroen un Intervals.icu. W.e.gl. an e puer Minutten nach eng Kéier.' }[r.status] || 'Intervals.icu-Feeler ' + r.status + '.';
+    throw Object.assign(new Error(msg), { status: r.status });
+  }
+  const asUtc = s => /Z|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z';
+  // original file (fit, tcx or gpx, gzipped) → laps; throws when there is none or it holds no laps
+  async function icuFileLaps(id) {
+    let buf = new Uint8Array(await (await icuFetch(`/activity/${id}/file`)).arrayBuffer());
+    if (buf[0] === 0x1F && buf[1] === 0x8B)
+      buf = new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    const file = new File([buf], `intervals-${id}`), kind = await sniff(file);
+    if (!['fit', 'zip', 'tcx'].includes(kind)) throw new Error('keng Runden an der Datei');   // GPX has no laps: the intervals are better
+    return parseActivity(file, kind);
+  }
+  // Intervals' own intervals: WORK = rep, RECOVERY = pause (else the usual automatic detection)
+  const icuWork = act => (act.icu_intervals || []).filter(x => x.type === 'WORK').length;
+  function icuLaps(act) {
+    const iv = (act.icu_intervals || []).filter(x => (x.moving_time || x.elapsed_time) > 0).sort((a, b) => (a.start_index || 0) - (b.start_index || 0));
+    if (!iv.length) return null;
+    const typed = icuWork(act) > 0 && iv.some(x => x.type === 'RECOVERY');
+    const laps = iv.map(x => {
+      const pause = typed && x.type === 'RECOVERY';
+      return { d: x.distance ?? NaN, t: pause ? (x.elapsed_time || x.moving_time) : (x.moving_time || x.elapsed_time),
+               hrAvg: x.average_heartrate ?? undefined, hrMax: x.max_heartrate ?? undefined, hrMin: x.min_heartrate ?? undefined,
+               kind: typed ? (pause ? 'pause' : 'rep') : '' };
+    });
+    laps.meta = {};
+    return laps;
+  }
+  async function icuLoad(input) {
+    const raw = icuId(input);
+    if (!raw) throw new Error('Keng Aktivitéits-Nummer erkannt. Z.B. i12345678, oder de Link vun der Aktivitéit apechen.');
+    const ids = /^\d+$/.test(raw) ? ['i' + raw, raw] : [raw];             // Intervals' own ids start with "i", Strava ones do not
+    status('Aktivitéit gëtt vun Intervals.icu gelueden …');
+    let act, id;
+    for (const c of ids) {
+      try { act = await (await icuFetch(`/activity/${c}?intervals=true`)).json(); id = c; break; }
+      catch (e) { if (!(e.status === 404 || e.status === 403) || c === ids[ids.length - 1]) throw e; }
+    }
+    if (Array.isArray(act)) act = act[0];
+    if (!act || !act.id) throw new Error('Aktivitéit net fonnt.');
+    // activities Intervals.icu may not pass on through the API come back as a stub: id, date, source and a note
+    if (act._note || (act.source === 'STRAVA' && !act.icu_intervals)) {
+      throw new Error((act.source === 'STRAVA'
+        ? 'Dës Aktivitéit ass vu Strava op Intervals.icu komm, an esou Aktivitéite gëtt Intervals.icu net iwwer d\'API weider (Reegel vu Strava).'
+        : 'Intervals.icu gëtt dës Aktivitéit net iwwer d\'API weider' + (act._note ? ` („${act._note}“).` : '.')) +
+        ' W.e.gl. de FIT-Fichier vun der Auer an Deel 2 zéien, oder d\'Auer direkt mat Intervals.icu verbannen (Garmin, Coros …).');
+    }
+    let laps = null, src = 'Intervals.icu', extra = '';
+    if (act.source !== 'STRAVA') {                                         // Strava files are never available through the API
+      status('Auer-Fichier gëtt vun Intervals.icu gelueden …');
+      try { laps = await icuFileLaps(id); src = 'Intervals.icu (Auer-Fichier)'; }
+      catch (e) { if (e.status === 401 || e.status === 429) throw e; }      // anything else: the intervals below
+    }
+    // no laps pressed on the watch (one lap, or just the whole run) while Intervals.icu found intervals: take those
+    const iv = icuLaps(act);
+    if (laps && iv && laps.length <= 2 && icuWork(act) >= 2) laps = null;
+    if (!laps) {
+      if (!iv) throw new Error('Fir dës Aktivitéit huet Intervals.icu weder eng Datei nach Intervalle. W.e.gl. de FIT-Fichier vun der Auer an Deel 2 zéien.');
+      laps = iv; src = 'Intervals.icu (Intervalle)'; extra = ' Intervals.icu gëtt d\'Zäite vun den Intervalle just op d\'Sekonn.';
+    }
+    // date / time of day / weather the file itself does not hold come from the activity (Intervals' wind speed is m/s)
+    const m = laps.meta ||= {};
+    if (act.start_date && m.start == null) m.start = Date.parse(asUtc(act.start_date)) / 1000 - FIT_EPOCH;
+    if (act.start_date && act.start_date_local && m.tzOffset == null) m.tzOffset = (Date.parse(asUtc(act.start_date_local)) - Date.parse(asUtc(act.start_date))) / 1000;
+    if (m.temp == null && act.average_weather_temp != null) m.temp = Math.round(act.average_weather_temp * 10) / 10;
+    if (m.wind == null && act.average_wind_speed != null) m.wind = act.average_wind_speed * 3.6;
+    if (act.type && !/run/i.test(act.type)) extra += ` Opgepasst: d'Aktivitéit ass als „${act.type}“ gespäichert.`;
+    await takeLaps(laps, src, act.name || id, extra);
+  }
+  function icuUi() {
+    const on = !!iGet();
+    $('icuKey').value = iGet(); $('icuKeyOff').hidden = !on;
+    $('icuKeyBox').open = !on;
+  }
+  // a pasted "API_KEY:…" (the user name of the Basic login) is cut off
+  $('icuKey').addEventListener('input', e => { const v = e.target.value.trim().replace(/^api_key:/i, ''); iSet(v); $('icuKeyOff').hidden = !v; });
+  $('icuKeyOff').onclick = () => { iSet(''); icuUi(); };
+  $('icuBtn').onclick = async () => {
+    if (!iGet()) { $('icuKeyBox').open = true; $('icuKey').focus(); status('Fir d\'éischt den API-Schlëssel aginn (Intervals.icu → Settings → Developer Settings → API Key).', true); return; }
+    $('icuBtn').disabled = true;
+    try { await icuLoad($('icuAct').value); }
+    catch (err) { status(err.message || String(err), true); if (err.status === 401) $('icuKeyBox').open = true; }
+    finally { $('icuBtn').disabled = false; }
+  };
+
   // ================= Weather from Open-Meteo (free, no key) for the date + time of day =================
   // place: GPS start of an imported activity, else the field "Plaz" (default Diekirch, looked up with Open-Meteo's
   // geocoder). Only empty fields (or values it filled itself) are set.
@@ -2067,7 +2200,7 @@
     fillModels(); renderRack();
   }
   fetch(SHOES_URL).then(r => r.ok ? r.json() : {}).then(j => { SHOES = j.brands || {}; }).catch(() => {}).finally(initShoes);
-  window.lafenImport = { importFile, parsePlan, parseLaps, parseFIT, evaluate, mergePlan, combine };   // for testing
+  window.lafenImport = { importFile, parsePlan, parseLaps, parseFIT, evaluate, mergePlan, combine, icuLoad, icuId };   // for testing
   // for the SauerBeen app: a FIT/TCX/GPX/ZIP file shared to the app is handed over as base64 → import dialog
   window.SauerBeen = {
     importFile(base64, name = 'aktivitaet.fit') {

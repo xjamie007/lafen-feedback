@@ -32,6 +32,7 @@ Web-Tool, das die Excel-Datei „Lafen SauerBeen Trainingsfeedback“ ersetzt: L
 
 ## Import / Trainingsplan-Parser
 - Quellen: FIT/TCX/GPX (Garmin, Coros, Strava), Screenshot/Foto der Rundenliste (Texterkennung im Gerät), Trainingsplan (PDF, Bild, Text), Strecke wählen (400 m bis Marathon, ab 3 km eine Rep pro km)
+- Intervals.icu: Aktivitäts-Nummer oder Link + eigener API-Key (nur im localStorage, `lafen-intervals`); Aufruf direkt aus dem Browser (CORS erlaubt), Basic Auth `API_KEY:<key>`. Zuerst die Originaldatei (`/activity/{id}/file`, gzip) durch den normalen FIT-Import, sonst `icu_intervals` (nur ganze Sekunden). Von Strava stammende Aktivitäten gibt die API nur als Platzhalter (`_note`) heraus → klare Meldung, FIT-Datei nehmen. Wind von Intervals in m/s → ×3,6
 - Auf der Bahn wird GPS-Distanz auf runde Distanz gesetzt (1612 m → 1600 m); GPX in 1-km-Splits
 - Immer eine Vorschau, in der jede Zeile (Rep / Pause / ignorieren) und jeder Wert geändert werden kann
 - Plan-Schreibweise: eine Zeile pro Schritt, Wochentag als eigene Zeile darüber; `4km WU`/`2km CD` zählen nicht als Rep; `6x1000m (60s)`; `4x(1600-1200) (60s)`; `8min threshold @ 4:50`; `p90s` = Pause nach dem Block; `5x30s rop (rof)` = Hills
