@@ -67,6 +67,7 @@
     background: #eef1fb; border-left: 4px solid var(--sb-yellow); color: var(--sb-blue);
     padding: 5px 10px; margin: 0 0 12px; font-size: 13px;
   }
+  .note .kk { white-space: nowrap; }
   .note .k { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; margin: 0 3px 0 8px; border: 1px solid #555; }
 
   /* Header block */
@@ -138,6 +139,13 @@
     .meta { grid-template-columns: 110px 1fr; }
     .meta .span2, .meta .span3, .meta .span5 { grid-column: span 1; }
     .meta label { text-align: left; }
+    /* phone: three rows of buttons would stay over a fifth of the screen */
+    .toolbar { position: static; padding: 8px 12px; gap: 6px; }
+    .rowbtns .tgl { margin-left: 0; flex-basis: 100%; }
+  }
+  /* touch screens: iPhone zooms into every field with a font below 16px (and stays zoomed) */
+  @media screen and (pointer: coarse) {
+    input, textarea, select { font-size: 16px; }
   }
 
   @page { size: A4 portrait; margin: 12mm 10mm; }
@@ -226,6 +234,15 @@
   #icuBox summary { cursor: pointer; font-size: 13px; }
   #icuBox #icuKey { max-width: 360px; margin-top: 6px; -webkit-text-security: disc; }   /* masked without type=password: no password-manager autofill */
   #icuBox .hint { margin: 4px 0 0; }
+  #icuBox .sub { font-size: 12px; color: var(--muted); }
+  #icuList { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin-top: 8px; max-height: 40vh; overflow-y: auto; }
+  #icuList:empty { display: none; }
+  #icuList button { text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 1px; min-width: 0; border-radius: 8px; padding: 6px 10px; }
+  #icuList button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #icuList button.on { background: var(--sb-blue); border-color: var(--sb-blue); color: #fff; }
+  #icuList button.on small { color: #dfe4f5; }
+  #icuList button:disabled { opacity: .6; cursor: default; }
+  #icuList small { color: var(--muted); }
   #icuKeyOff { font-size: 12px; color: var(--muted); background: none; border: 0; text-decoration: underline; padding: 0 4px; }
   #imp .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   .rowbtns .tgl { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--sb-blue); font-size: 13px; cursor: pointer; }
@@ -251,8 +268,8 @@
 
 <div class="sheet">
   <p class="note">Blo Casen w.e.gl. ausfëllen, gro gëtt berechent.
-    <span class="k" style="background:var(--input)"></span>Agab
-    <span class="k" style="background:var(--calc)"></span>berechent</p>
+    <span class="kk"><span class="k" style="background:var(--input)"></span>Agab</span>
+    <span class="kk"><span class="k" style="background:var(--calc)"></span>berechent</span></p>
   <div class="printonly ptitle"><img class="sblogo" src="sauerbeen-schriftzug.png" alt="SauerBeen"><span id="ptitle"></span></div>
 
   <div class="meta">
@@ -413,7 +430,8 @@
     </label>
   </div>
   <div id="icuBox">
-    <b>Oder direkt vun Intervals.icu</b> <span style="font-size:12px;color:var(--muted)">(amplaz Deel 2)</span>
+    <b id="icuHead">Oder direkt vun Intervals.icu</b> <span class="sub" id="icuSub">(amplaz Deel 2)</span>
+    <div id="icuList"></div>
     <div class="line">
       <input id="icuAct" placeholder="z.B. i12345678 oder Link" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Intervals.icu Aktivitéits-Nummer">
       <button id="icuBtn" class="primary">Vun Intervals.icu lueden</button>
@@ -422,7 +440,7 @@
       <summary>API-Schlëssel</summary>
       <input id="icuKey" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="API-Schlëssel vun Intervals.icu" aria-label="Intervals.icu API-Schlëssel">
       <button id="icuKeyOff" hidden>Schlëssel läschen</button>
-      <p class="hint">Intervals.icu → Settings → Developer Settings → API Key. De Schlëssel bleift just an dësem Browser a geet nëmmen un intervals.icu.</p>
+      <p class="hint">Eemol aginn: op <a href="https://intervals.icu/settings" target="_blank" rel="noopener">intervals.icu/settings</a> bei „Developer Settings“ den „API Key“ kopéieren an hei apechen. De Schlëssel bleift just an dësem Browser a geet nëmmen un intervals.icu.</p>
     </details>
   </div>
   <div id="stravaBox" hidden>
@@ -2166,16 +2184,56 @@
     if (act.type && !/run/i.test(act.type)) extra += ` Opgepasst: d'Aktivitéit ass als „${act.type}“ gespäichert.`;
     await takeLaps(laps, src, act.name || id, extra);
   }
+  // the runner's last runs (3 weeks) to tap on: on a phone much easier than copying the number of the activity.
+  // Athlete "0" = the athlete of the API key. Strava activities come as an empty stub: shown, but greyed out.
+  const isoDay = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  let icuReq = 0;
+  async function icuList() {
+    const el = $('icuList'), id = ++icuReq;
+    if (!iGet()) { el.innerHTML = ''; return; }
+    el.innerHTML = '<small>Lescht Leef ginn gelueden …</small>';
+    let acts;
+    try { acts = await (await icuFetch(`/athlete/0/activities?oldest=${isoDay(new Date(Date.now() - 21 * 864e5))}&limit=40`)).json(); }
+    catch (err) {
+      if (id !== icuReq) return;
+      el.innerHTML = `<small>${(err.status === 401 ? 'De API-Schlëssel gëtt net akzeptéiert. W.e.gl. nokucken.' : err.message).replace(/</g, '&lt;')}</small>`;
+      if (err.status === 401) $('icuKeyBox').open = true;
+      return;
+    }
+    if (id !== icuReq) return;
+    const runs = (Array.isArray(acts) ? acts : []).filter(a => !a.type || /run/i.test(a.type)).slice(0, 12);
+    el.innerHTML = runs.map(a => {
+      const stub = !a.type && (a.source === 'STRAVA' || a._note), t = String(a.start_date_local || '');
+      const day = t ? new Date(t.slice(0, 10) + 'T12:00').toLocaleDateString('de-LU', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' ' + t.slice(11, 16) : '';
+      const what = stub ? 'vu Strava – net iwwer Intervals.icu' : [isFinite(a.distance) ? dec(a.distance / 1000, 1) + ' km' : '', a.moving_time ? fmtHMS(a.moving_time) : ''].filter(Boolean).join(' · ');
+      return `<button type="button" data-icu="${String(a.id).replace(/"/g, '')}"${stub ? ' disabled title="Strava gëtt dës Aktivitéit net weider: w.e.gl. de FIT-Fichier huelen"' : ''}>` +
+             `<span>${[day, String(stub ? '' : a.name || '').replace(/</g, '&lt;')].filter(Boolean).join(' · ')}</span><small>${what}</small></button>`;
+    }).join('') || '<small>Keng Leef an de leschten 3 Wochen op Intervals.icu. Soss d\'Nummer oder de Link vun der Aktivitéit hei ënnen aginn.</small>';
+  }
+  $('icuList').addEventListener('click', e => {
+    const b = e.target.closest('button[data-icu]'); if (!b || b.disabled) return;
+    $('icuList').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('icuAct').value = b.dataset.icu; $('icuBtn').click();
+  });
+  // with a key the Intervals.icu box is the main way in: on top, with the list of runs
   function icuUi() {
-    const on = !!iGet();
+    const on = !!iGet(), zones = document.querySelector('#imp .zones');
     $('icuKey').value = iGet(); $('icuKeyOff').hidden = !on;
     $('icuKeyBox').open = !on;
+    if (on) zones.before($('icuBox')); else zones.after($('icuBox'));
+    $('icuHead').textContent = on ? 'Training vun Intervals.icu' : 'Oder direkt vun Intervals.icu';
+    $('icuSub').textContent = on ? '(oder ënnen eng Datei / e Screenshot)' : '(amplaz Deel 2)';
+    icuList();
   }
-  // a pasted "API_KEY:…" (the user name of the Basic login) is cut off
-  $('icuKey').addEventListener('input', e => { const v = e.target.value.trim().replace(/^api_key:/i, ''); iSet(v); $('icuKeyOff').hidden = !v; });
+  // a pasted "API_KEY:…" (the user name of the Basic login) is cut off; the list follows once typing stops
+  let icuKeyTimer = 0;
+  $('icuKey').addEventListener('input', e => {
+    const v = e.target.value.trim().replace(/^api_key:/i, ''); iSet(v); $('icuKeyOff').hidden = !v;
+    clearTimeout(icuKeyTimer); icuKeyTimer = setTimeout(icuList, 800);
+  });
   $('icuKeyOff').onclick = () => { iSet(''); icuUi(); };
   $('icuBtn').onclick = async () => {
-    if (!iGet()) { $('icuKeyBox').open = true; $('icuKey').focus(); status('Fir d\'éischt den API-Schlëssel aginn (Intervals.icu → Settings → Developer Settings → API Key).', true); return; }
+    if (!iGet()) { $('icuKeyBox').open = true; $('icuKey').focus(); status('Fir d\'éischt den API-Schlëssel aginn (op intervals.icu/settings bei „Developer Settings“).', true); return; }
     $('icuBtn').disabled = true;
     try { await icuLoad($('icuAct').value); }
     catch (err) { status(err.message || String(err), true); if (err.status === 401) $('icuKeyBox').open = true; }
